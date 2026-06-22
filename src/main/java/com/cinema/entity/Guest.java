@@ -71,4 +71,8 @@ public class Guest {
     public String toString() {
         return String.format("Guest{id=%d, '%s', %s, document=%s}", id, firstname, lastname, document);
     }
+
+    public List<Booking> getBookings() {
+        return bookings;
+    }
 }

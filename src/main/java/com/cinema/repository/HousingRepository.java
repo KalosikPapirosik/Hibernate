@@ -22,7 +22,8 @@ public class HousingRepository extends GenericRepository{
     public Optional<Housing> findByIdWithDetails(int id) {
         try (EntityManager em = HibernateUtil.createEntityManager()) {
             List<Housing> result = em.createQuery(
-                    "FROM Housing h JOIN FETCH h.condition JOIN FETCH h.type WHERE h.id = :id",
+                    "SELECT DISTINCT h FROM Housing h JOIN FETCH h.type JOIN FETCH h.condition JOIN FETCH h.camp " +
+                            "WHERE h.id = :id",
                     Housing.class).setParameter("id", id).getResultList();
             return result.isEmpty() ? Optional.empty() : Optional.of(result.get(0));
         }

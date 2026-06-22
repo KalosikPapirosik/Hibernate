@@ -39,6 +39,7 @@ public class BusinessQueryService {
     // 2. Заполняемость кемпов (активные брони / вместимость)
     public void campOccupancy() {
         printHeader("Заполняемость кемпов");
+        OffsetDateTime thirtyDaysAgo = OffsetDateTime.now().minusDays(30);
         try (EntityManager em = HibernateUtil.createEntityManager()) {
             List<Object[]> results = em.createQuery("""
                     SELECT c.location,
@@ -48,16 +49,15 @@ public class BusinessQueryService {
                     FROM Camp c
                     JOIN c.housing h
                     LEFT JOIN h.booking b 
-                        ON b.dateOfStart < CURRENT_DATE AND b.dateOfEnd > CURRENT_DATE
                     GROUP BY c.location
                     ORDER BY COUNT(DISTINCT b) DESC
                     """, Object[].class).getResultList();
 
-            System.out.printf("     %-25s %-12s %-12s %-10s%n", "Кемп", "Вместимость", "Актив. броней", "Загруз.%");
+            System.out.printf("     %-25s %-12s %-10s%n", "Кемп", "Актив. броней", "Загруз.%");
             System.out.println("     " + "─".repeat(61));
             for (Object[] row : results) {
-                System.out.printf("     %-25s %-12d %-12d %-10.1f%n",
-                        row[0], (long) row[1], (long) row[2], (double) row[3]);
+                System.out.printf("     %-25s %-12d %-10.1f%n",
+                        row[0], (long) row[2], (double) row[3]);
             }
         }
         printDivider();
@@ -139,12 +139,69 @@ public class BusinessQueryService {
         printDivider();
     }
 
+
+    // 6. Кросс продажи по типам жилья и услугам
+    public void crossSalesAdditionalServicesWithHousings() {
+        printHeader("Кросс продажи услуг");
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            OffsetDateTime thirtyDaysAgo = OffsetDateTime.now().minusDays(30);
+            List<Object[]> results = em.createQuery("""
+                    SELECT h.type.name,
+                           s.label,
+                           count(s),
+                           SUM(s.cost)
+                    FROM Booking b
+                    JOIN b.housing h
+                    JOIN b.additionalService s
+                    GROUP BY h.type.name, s.label, s.id
+                    ORDER BY COUNT(b) DESC
+                    """, Object[].class).getResultList();
+
+            System.out.printf("     %-12s %-10s %-15s %-12s%n","Тип жилья", "Название услуги", "Количество услуг","Выручка (₽)");
+            System.out.println("     " + "─".repeat(51));
+            for (Object[] row : results) {
+                System.out.printf("     %-12s %-24s %d %-12.2f%n",
+                        row[0], row[1], (long) row[2], (BigDecimal) row[3]);
+            }
+        }
+        printDivider();
+    }
+
+    // 7. Гости, часто возвращающиеся
+    public void guestTotheBack() {
+        printHeader("Динамика возврата гостей");
+        try (EntityManager em = HibernateUtil.createEntityManager()) {
+            OffsetDateTime thirtyDaysAgo = OffsetDateTime.now().minusDays(30);
+            List<Object[]> results = em.createQuery("""
+                    SELECT g.lastname || " " || g.firstname,
+                           count(b),
+                           SUM(b.housing.cost)
+                    FROM Booking b
+                    JOIN b.housing h
+                    JOIN b.guest g
+                    GROUP BY g.id, g.lastname, g.firstname
+                    HAVING count(b) > 1
+                    ORDER BY COUNT(b) DESC
+                    """, Object[].class).getResultList();
+
+            System.out.printf("     %-12s %-15s %-12s%n","Имя", "Количество броней","Выручка (₽)");
+            System.out.println("     " + "─".repeat(51));
+            for (Object[] row : results) {
+                System.out.printf("     %-12s %d %-12.2f%n",
+                        row[0], (long) row[1], (BigDecimal) row[2]);
+            }
+        }
+        printDivider();
+    }
+
     public void runAll() {
         revenueByHousingType();
         campOccupancy();
         topGuestsBySpending();
         additionalServicesPopularity();
         bookingTrendsLastMonth();
+        crossSalesAdditionalServicesWithHousings();
+        guestTotheBack();
     }
 
     private void printHeader(String title) {

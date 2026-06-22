@@ -4,7 +4,6 @@ import com.cinema.entity.AdditionalServices;
 import com.cinema.entity.Booking;
 import com.cinema.entity.Guest;
 import com.cinema.entity.Housing;
-import com.cinema.entity.old.Screening;
 import com.cinema.util.HibernateUtil;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;

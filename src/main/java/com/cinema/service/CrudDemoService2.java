@@ -23,7 +23,6 @@ public class CrudDemoService2 {
     private static final Scanner sc = new Scanner(System.in);
     private static final BusinessQueryService business = new BusinessQueryService();
 
-    // ── Кастомные репозитории ──────────────────────────────────
     private final GuestRepository guestRepo = new GuestRepository();
     private final HousingRepository housingRepo = new HousingRepository();
     private final CampRepository campRepo = new CampRepository();
@@ -59,9 +58,7 @@ public class CrudDemoService2 {
         }
     }
 
-    // =================================================================
-    // МЕНЮ CRUD (БАЗОВЫЕ ОПЕРАЦИИ)
-    // =================================================================
+    // МЕНЮ CRUD
     private void runCrudMenu() {
         boolean back = false;
         while (!back) {
@@ -84,9 +81,7 @@ public class CrudDemoService2 {
         }
     }
 
-    // =================================================================
-    // МЕНЮ СПЕЦ. ЗАПРОСОВ (JOIN FETCH, ФИЛЬТРАЦИЯ)
-    // =================================================================
+    // МЕНЮ СПЕЦ. ЗАПРОСОВ
     private void runSpecialQueriesMenu() {
         boolean back = false;
         while (!back) {
@@ -101,12 +96,54 @@ public class CrudDemoService2 {
             System.out.println("─".repeat(50));
 
             switch (readInt("Выберите запрос: ")) {
-                case 1 -> printList(guestRepo.findAllWithBooking(), "Гости с бронированиями");
+                case 1 -> {
+                    System.out.println("Гости с бронированиями:");
+                    List<Guest> guests = guestRepo.findAllWithBooking();
+
+                    if (guests.isEmpty()) {
+                        System.out.println(" Гости не найдены");
+                    } else {
+                        for (Guest g : guests) {
+                            System.out.printf(" Гость: %s %s (ID: %d) | Документ: %s%n",
+                                    g.getFirstname(), g.getLastname(), g.getId(), g.getDocument());
+
+                            List<Booking> bookings = g.getBookings();
+                            if (bookings == null || bookings.isEmpty()) {
+                                System.out.println(" Бронирований нет");
+                            } else {
+                                System.out.println(" Бронирования:");
+                                for (Booking b : bookings) {
+                                    String dates = (b.getDateOfStart() != null && b.getDateOfEnd() != null)
+                                            ? b.getDateOfStart().toLocalDate() + " → " + b.getDateOfEnd().toLocalDate()
+                                            : "даты не указаны";
+                                    System.out.printf("Бронь #%d | %s%n", b.getId(), dates);
+                                }
+                            }
+                            System.out.println("─".repeat(60));
+                        }
+                    }
+                    pause();
+                }
                 case 2 -> {
+                    System.out.println("Детали жилья по Id");
                     int id = readInt("ID жилья: ");
-                    housingRepo.findByIdWithDetails(id)
-                            .ifPresentOrElse(h -> System.out.println("\n" + h + "\n"),
-                                    () -> System.out.println("Не найдено"));
+                    Optional<Housing> optHousing = housingRepo.findByIdWithDetails(id);
+
+                    System.out.printf("%-15s %-20s%n", "Параметр", "Значение");
+                    System.out.println( "─".repeat(37));
+
+                    optHousing.ifPresentOrElse(
+                            h -> {
+                                System.out.printf("%-15s %-20s%n", "ID", h.getId());
+                                System.out.printf("%-15s %-20s%n", "Тип", h.getType() != null ? h.getType().getName() : "—");
+                                System.out.printf("%-15s %-20s%n", "Кемп", h.getCamp() != null ? h.getCamp().getLocation() : "—");
+                                System.out.printf("%-15s %-20s%n", "Условия", h.getCondition() != null ? h.getCondition().getName() : "—");
+                                System.out.printf("%-15s %-20s%n", "Комфорт", h.getComfortLvl() != null ? h.getComfortLvl() : "—");
+                                System.out.printf("%-15s %-20d%n", "Вместимость", h.getCapacity() != null ? h.getCapacity() : 0);
+                                System.out.printf("%-15s %-20s%n", "Стоимость", h.getCost() != null ? String.format("%.2f ₽", h.getCost()) : "—");
+                            },
+                            () -> System.out.println("Жильё не найдено")
+                    );
                     pause();
                 }
                 case 3 -> {
@@ -235,9 +272,7 @@ public class CrudDemoService2 {
         }
     }
 
-    // =================================================================
-    // МЕНЮ БИЗНЕС-ЗАПРОСОВ (АНАЛИТИКА)
-    // =================================================================
+    // МЕНЮ БИЗНЕС-ЗАПРОСОВ
     private void runBusinessMenu() {
         boolean back = false;
         while (!back) {
@@ -247,7 +282,9 @@ public class CrudDemoService2 {
             System.out.println("  3. Топ-5 гостей по тратам");
             System.out.println("  4. Популярность доп. услуг");
             System.out.println("  5. Динамика бронирований (30 дней)");
-            System.out.println("  6. Выполнить все подряд");
+            System.out.println("  6. Кросс продажи по типам жилья и доп услугам");
+            System.out.println("  7, Гости, которые возвращаются больше одного раза");
+            System.out.println("  8. Выполнить все подряд");
             System.out.println("  0. Назад");
             System.out.println("─".repeat(50));
 
@@ -257,12 +294,14 @@ public class CrudDemoService2 {
                     business::campOccupancy,
                     business::topGuestsBySpending,
                     business::additionalServicesPopularity,
-                    business::bookingTrendsLastMonth
+                    business::bookingTrendsLastMonth,
+                    business::crossSalesAdditionalServicesWithHousings,
+                    business::guestTotheBack
             };
 
-            if (choice >= 1 && choice <= 5) {
-                runWithEm(em -> queries[choice - 1].run(), "Запрос выполнен");
-            } else if (choice == 6) {
+            if (choice >= 1 && choice <= 7) {
+                runWithEm(em -> queries[choice - 1].run(), "\nЗапрос выполнен");
+            } else if (choice == 8) {
                 runWithEm(em -> business.runAll(), "Все бизнес-запросы выполнены");
             } else if (choice == 0) {
                 back = true;
@@ -272,9 +311,7 @@ public class CrudDemoService2 {
         }
     }
 
-    // =================================================================
     // CRUD: СОЗДАНИЕ
-    // =================================================================
     private void runCreateMenu() {
         printHeader("РЕЖИМ СОЗДАНИЯ");
         System.out.println("  1. Ручной ввод данных");
@@ -392,9 +429,7 @@ public class CrudDemoService2 {
         }, "Инвентарь сохранён");
     }
 
-    // =================================================================
     // CRUD: ЧТЕНИЕ / ОБНОВЛЕНИЕ / УДАЛЕНИЕ
-    // =================================================================
     private void runReadAllMenu() {
         printHeader("ПРОСМОТР ВСЕХ ЗАПИСЕЙ");
         System.out.println(" 1. Гости  \n 2. Кемпы \n 3. Жильё \n 4. Бронирования \n 5. Услуги \n 6. Инвентарь \n 0. Назад");
@@ -472,11 +507,9 @@ public class CrudDemoService2 {
         pause();
     }
 
-    // =================================================================
     // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    // =================================================================
     private <T> void printList(List<T> list, String title) {
-        System.out.println("\n📋 " + title + " (" + list.size() + "):");
+        System.out.println(title + " (" + list.size() + "):");
         if (list.isEmpty()) System.out.println("  (пусто)");
         else list.forEach(e -> System.out.println("  " + e));
         System.out.println("─".repeat(50));
@@ -505,7 +538,7 @@ public class CrudDemoService2 {
             System.out.print(prompt);
             String input = sc.nextLine().trim();
             if (!input.isEmpty()) return input;
-            System.out.println("⚠️ Поле не может быть пустым.");
+            System.out.println("Поле не может быть пустым.");
         }
     }
 
@@ -518,7 +551,7 @@ public class CrudDemoService2 {
             try {
                 return OffsetDateTime.parse(input);
             } catch (DateTimeParseException e) {
-                System.out.println("⚠️ Неверный формат. Пример: 2026-07-10T14:30:00+03:00");
+                System.out.println("Неверный формат. Пример: 2026-07-10T14:30:00+03:00");
             }
         }
     }
@@ -527,9 +560,9 @@ public class CrudDemoService2 {
         while (true) {
             System.out.print(prompt);
             String input = sc.nextLine().trim();
-            if (input.isEmpty()) { System.out.println("⚠️ Введите число."); continue; }
+            if (input.isEmpty()) { System.out.println("Введите число."); continue; }
             try { return Integer.parseInt(input); }
-            catch (NumberFormatException e) { System.out.println("⚠️ Неверный формат."); }
+            catch (NumberFormatException e) { System.out.println("Неверный формат."); }
         }
     }
 
@@ -537,9 +570,9 @@ public class CrudDemoService2 {
         while (true) {
             System.out.print(prompt);
             String input = sc.nextLine().trim();
-            if (input.isEmpty()) { System.out.println("⚠️ Введите число."); continue; }
+            if (input.isEmpty()) { System.out.println("Введите число."); continue; }
             try { return new BigDecimal(input); }
-            catch (NumberFormatException e) { System.out.println("⚠️ Неверный формат."); }
+            catch (NumberFormatException e) { System.out.println("Неверный формат."); }
         }
     }
 
